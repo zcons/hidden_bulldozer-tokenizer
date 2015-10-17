@@ -4,6 +4,8 @@
 #include "talloc.h"
 #include "linkedlist.h"
 
+// A global variable that is a linked list that stores the pointer's
+// of all variables that are malloc'ed in the program.
 Value *collector;
 
 /* 
@@ -15,18 +17,30 @@ Value *collector;
  * modify the linked list to use talloc.
  */
 void *talloc(size_t size) {
-    Value *cell = malloc(sizeof(size));
+    
+    // If collector is set to NULL, this means the garbage collector
+    // is empty or has been empty and needs to be initialized. We
+    // its type equal to NULL_TYPE, to let tfree() know that this
+    // is the end of the list.
     if (collector == NULL) {
         collector = malloc(sizeof(Value));
         collector->type = NULL_TYPE;
     }
     
+    // Creates a temporary CONS_TYPE value node that holds the
+    // pointer for the l-value that calls talloc in its car and
+    // holds the rest of the list in its cdr. Then resets collector
+    // to equal this temporary node, in order to increase the
+    // garbage collector.
     Value *new = malloc(sizeof(Value));
     new->type = CONS_TYPE;
-    new->c.car = cell;
+    new->c.car = malloc(size);
     new->c.cdr = collector;
     collector = new;
-    return cell;
+    
+    // Return the pointer of the car, where this value's information
+    // will be stored.
+    return collector->c.car;
 }
 
 /* 
@@ -34,18 +48,39 @@ void *talloc(size_t size) {
  * you allocated in lists to hold those pointers.
  */
 void tfree() {
-    Value *cdr1 = collector->c.cdr;
+    
+    // Stores the value of the cdr of collector.
+    Value *cdr;
+    
+    // Uses a while loop to parse through the garbage collector
+    // in order to free all the memory in heap.
     while (true) {
-        if (collector->type == NULL_TYPE) {
-            free(collector);
+        
+        // Checks to make sure the collector is initialized, if it is
+        // not then break from the while loop as ther is nothing to
+        // free.
+        if (collector == NULL) {
             break;
         }
-        printf("%i\n", collector->type);
-        free(collector->c.car);
-        free(collector);
         
-        collector = cdr1;
-        cdr1 = collector->c.cdr;
+        // Checks to see if the while loop has reached the end of
+        // collector. If it has free collector and set equal to NULL
+        // in case there are more talloc's in the program. Thus, 
+        // allowing the collector to be reinitialized.
+        if (collector->type == NULL_TYPE) {
+            free(collector);
+            collector = NULL;
+            break;
+        }
+        
+        // Once the collector has been checked for its initialization
+        // or length, free the car of the collector. Then, reset the
+        // the cdr of collector in order to parse down through the 
+        // list. Then free the collector and reset it to the cdr.
+        free(collector->c.car);
+        cdr = collector->c.cdr;
+        free(collector);
+        collector = cdr;
     }
 }
 
@@ -56,7 +91,8 @@ void tfree() {
  * automatically cleaned up.
  */
 void texit(int status) {
-    //printf("yes");
+    tfree();
+    exit(status);
 }
 
 
